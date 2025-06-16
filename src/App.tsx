@@ -17,8 +17,11 @@ import {
   Filter,
   Eye,
   ArrowLeft,
-  Database
+  Database,
+  QrCode,
+  Share2
 } from 'lucide-react';
+import QRCodeGenerator from './components/QRCodeGenerator';
 
 interface Employee {
   id: string;
@@ -102,9 +105,25 @@ function App() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isVisible, setIsVisible] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrEmployee, setQrEmployee] = useState<Employee | null>(null);
 
   useEffect(() => {
     setTimeout(() => setIsVisible(true), 300);
+  }, []);
+
+  // Check if we should load a specific employee from URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const employeeId = urlParams.get('employee');
+    
+    if (employeeId) {
+      const employee = employees.find(emp => emp.id === employeeId);
+      if (employee) {
+        setSelectedEmployee(employee);
+        setCurrentView('detail');
+      }
+    }
   }, []);
 
   const formatName = (name: string) => {
@@ -128,6 +147,11 @@ function App() {
     });
   };
 
+  const generateEmployeeURL = (employee: Employee) => {
+    const baseURL = window.location.origin + window.location.pathname;
+    return `${baseURL}?employee=${employee.id}`;
+  };
+
   const filteredEmployees = employees.filter(employee =>
     employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     employee.id.includes(searchTerm) ||
@@ -141,11 +165,34 @@ function App() {
   const handleViewEmployee = (employee: Employee) => {
     setSelectedEmployee(employee);
     setCurrentView('detail');
+    // Update URL without page reload
+    const newURL = generateEmployeeURL(employee);
+    window.history.pushState({ employee: employee.id }, '', newURL);
   };
 
   const handleBackToDashboard = () => {
     setCurrentView('dashboard');
     setSelectedEmployee(null);
+    // Clear URL parameters
+    window.history.pushState({}, '', window.location.pathname);
+  };
+
+  const handleShowQR = (employee: Employee) => {
+    setQrEmployee(employee);
+    setShowQRModal(true);
+  };
+
+  const handleCloseQRModal = () => {
+    setShowQRModal(false);
+    setQrEmployee(null);
+  };
+
+  const handleCopyURL = (employee: Employee) => {
+    const url = generateEmployeeURL(employee);
+    navigator.clipboard.writeText(url).then(() => {
+      // You could add a toast notification here
+      console.log('URL copied to clipboard');
+    });
   };
 
   if (currentView === 'detail' && selectedEmployee) {
@@ -220,7 +267,7 @@ function App() {
                 {/* Professional badge */}
                 <div className="absolute top-4 sm:top-6 md:top-8 lg:top-10 right-4 sm:right-6 md:right-8">
                   <div className="w-8 sm:w-10 md:w-12 h-8 sm:h-10 md:h-12 bg-white/25 backdrop-blur-md rounded-xl sm:rounded-2xl flex items-center justify-center border border-white/40">
-                    <Award className="w-4 sm:w-5 md:w-6 h-4 sm:h-5 md:h-6 text-white" />
+                    <Award className="w-4 sm:w-5 md:w-6 h-4 sm:w-5 md:h-6 text-white" />
                   </div>
                 </div>
 
@@ -483,6 +530,9 @@ function App() {
               <thead className="bg-gradient-to-r from-emerald-600 to-green-700">
                 <tr>
                   <th className="px-4 sm:px-6 py-4 text-left text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                    QR
+                  </th>
+                  <th className="px-4 sm:px-6 py-4 text-left text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
                     Empleado
                   </th>
                   <th className="px-4 sm:px-6 py-4 text-left text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
@@ -514,6 +564,22 @@ function App() {
               <tbody className="bg-white divide-y divide-green-100">
                 {filteredEmployees.map((employee, index) => (
                   <tr key={employee.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-green-50/30'} hover:bg-green-50 transition-colors`}>
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        <QRCodeGenerator 
+                          value={generateEmployeeURL(employee)}
+                          size={60}
+                          className="cursor-pointer hover:scale-105 transition-transform"
+                        />
+                        <button
+                          onClick={() => handleShowQR(employee)}
+                          className="p-2 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Ver QR más grande"
+                        >
+                          <QrCode className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-emerald-100 to-green-200 rounded-xl flex items-center justify-center">
@@ -562,13 +628,22 @@ function App() {
                       </span>
                     </td>
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => handleViewEmployee(employee)}
-                        className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white text-sm font-medium rounded-lg hover:from-emerald-600 hover:to-green-700 transition-all shadow-md"
-                      >
-                        <Eye className="w-4 h-4" />
-                        <span>Ver</span>
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleViewEmployee(employee)}
+                          className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white text-sm font-medium rounded-lg hover:from-emerald-600 hover:to-green-700 transition-all shadow-md"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span>Ver</span>
+                        </button>
+                        <button
+                          onClick={() => handleCopyURL(employee)}
+                          className="p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Copiar enlace"
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -594,6 +669,47 @@ function App() {
           </p>
         </div>
       </div>
+
+      {/* QR Modal */}
+      {showQRModal && qrEmployee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
+            <div className="text-center">
+              <h3 className="text-xl font-bold text-gray-800 mb-2">
+                Código QR - {formatName(qrEmployee.name)}
+              </h3>
+              <p className="text-gray-600 mb-6 text-sm">
+                Escanea para acceder directamente a la información del empleado
+              </p>
+              
+              <div className="flex justify-center mb-6">
+                <QRCodeGenerator 
+                  value={generateEmployeeURL(qrEmployee)}
+                  size={200}
+                  className="shadow-lg"
+                />
+              </div>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleCopyURL(qrEmployee)}
+                  className="w-full inline-flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white font-medium rounded-lg hover:from-emerald-600 hover:to-green-700 transition-all shadow-md"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Copiar Enlace</span>
+                </button>
+                
+                <button
+                  onClick={handleCloseQRModal}
+                  className="w-full px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
